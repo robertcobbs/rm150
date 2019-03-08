@@ -1,7 +1,7 @@
 # Copyright (C) 2014 Synapse Wireless, Inc.
 """Main file for RM150"""
 # TODO:
-# 1. Fix Alerts (triggering alert needs a new after removing rm_ack func)
+# 1. Add audio alert option
 
 from synapse.switchboard import *
 from synapse.platforms import *
@@ -31,8 +31,8 @@ VERSION = 8
 
 # CONFIGURATION
 EXT_1_ENABLED = True
-EXT_2_ENABLED = False
-EXT_1_MONITORED_ITEM = 1  # 0 for Temp, 1 for Door Relay
+EXT_2_ENABLED = True
+EXT_1_MONITORED_ITEM = 0  # 0 for Temp, 1 for Door Relay
 EXT_2_MONITORED_ITEM = 0  # 0 for Temp, 1 for Door Relay
 
 GW_COMM_MCAST_GROUP = 3
@@ -48,7 +48,7 @@ HAS_HUMIDITY_SENSOR = False
 
 IN_FAHRENHEIT = True
 
-REPORT_INTV = 600  # seconds
+REPORT_INTV = 60  # seconds
 ALERT_INTV = 30  # seconds (time between buzzers)
 INTERVAL_DELAY = 5   # seconds
 LCD_UPDATE_INT = INTERVAL_DELAY * 1000  # milliseconds
@@ -58,9 +58,9 @@ AMB_TEMP_HIGH = 9999  # decidegrees Celcius
 AMB_TEMP_LOW = -999  # decidegrees Celcius
 AMB_HUMID_HIGH = 9999
 AMB_HUMID_LOW = -999
-EXT_1_HIGH = 9999  # decidegrees Celcius
-EXT_2_HIGH = 9999  # decidegrees Celcius
+EXT_1_HIGH = 300  # decidegrees Celcius
 EXT_1_LOW = -999  # decidegrees Celcius
+EXT_2_HIGH = 9999  # decidegrees Celcius
 EXT_2_LOW = -999  # decidegrees Celcius
 
 
@@ -128,7 +128,7 @@ def start():
 
 
 def run_fsm():
-    global report_cntr, current_state
+    global report_cntr, current_state, found_alert, alert_cntr, alert_interval
     
     while current_state == STATE_NORMAL:
         sleep(2, -LCD_UPDATE_INT)
@@ -144,7 +144,19 @@ def run_fsm():
         _update_lcd_batt()
         _update_lcd_signal(link_quality)
         CTLCD_updateDisplay()
-        
+
+        if found_alert:
+            alert_cntr += 1
+            found_alert = False
+            CTLCD_set_Alert(ICON_STATE_BLINK)
+            CTLCD_updateDisplay()
+            if alert_cntr >= alert_interval:
+                send_report()
+                return
+        elif not found_alert:
+            CTLCD_set_Alert(ICON_STATE_OFF)
+            CTLCD_updateDisplay()
+
         if report_cntr >= current_interval:
             send_report()
 
@@ -214,7 +226,6 @@ def read_temps():
             found_alert = True
         else:
             CTLCD_set_T_amb_limits(LIMITS_OK)
-            found_alert = True
         if IN_FAHRENHEIT:
             tempr = c_to_f(tempr)
         CTLCD_set_T_amb(tempr)
