@@ -58,13 +58,14 @@ AMB_TEMP_HIGH = 9999  # decidegrees Celcius
 AMB_TEMP_LOW = -999  # decidegrees Celcius
 AMB_HUMID_HIGH = 9999
 AMB_HUMID_LOW = -999
-EXT_1_HIGH = 300  # decidegrees Celcius
+EXT_1_HIGH = 275  # decidegrees Celcius
 EXT_1_LOW = -999  # decidegrees Celcius
 EXT_2_HIGH = 9999  # decidegrees Celcius
 EXT_2_LOW = -999  # decidegrees Celcius
 
 
 # CONSTANTS
+STATE_ALERT = 4
 STATE_REPORT_RPC_QUEUED = 3  # Waiting for callback that 'report' rpc was sent
 STATE_NORMAL = 2
 STATE_STARTUP = 1
@@ -84,6 +85,8 @@ startup_cntr = 0
 report_cntr = current_interval + 1  # Send status at startup
 found_alert = False
 alert_cntr = 0
+audio_cntr = 0
+in_audio = False
 
 report_rpc_ref = None
 
@@ -128,9 +131,9 @@ def start():
 
 
 def run_fsm():
-    global report_cntr, current_state, found_alert, alert_cntr, alert_interval
+    global report_cntr, current_state, found_alert, alert_cntr, alert_interval, in_audio, audio_cntr
     
-    while current_state == STATE_NORMAL:
+    while current_state == STATE_NORMAL and not in_audio:
         sleep(2, -LCD_UPDATE_INT)
 
         # check button
@@ -145,20 +148,33 @@ def run_fsm():
         _update_lcd_signal(link_quality)
         CTLCD_updateDisplay()
 
+        if report_cntr >= current_interval:
+            send_report()
+            return
+
         if found_alert:
             alert_cntr += 1
             found_alert = False
             CTLCD_set_Alert(ICON_STATE_BLINK)
             CTLCD_updateDisplay()
             if alert_cntr >= alert_interval:
+                in_audio = True
                 send_report()
-                return
         elif not found_alert:
             CTLCD_set_Alert(ICON_STATE_OFF)
             CTLCD_updateDisplay()
-
-        if report_cntr >= current_interval:
-            send_report()
+            in_audio = False
+        
+    if in_audio:
+        if audio_cntr == 0:
+            _set_buzzer_freq(500, True)
+        elif audio_cntr == 250:
+            _set_buzzer_freq(250, True)
+        elif audio_cntr >= 500:
+            _set_buzzer_state(False)
+            in_audio = False
+            alert_cntr = 0
+        audio_cntr += 1
 
 
 def send_report():
