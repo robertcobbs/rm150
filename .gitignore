@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# SNAPpy output files
+*.spy
+*.map
+
 # C extensions
 *.so
 
@@ -102,3 +106,5 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+.vscode
